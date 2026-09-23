@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>村上隆太陽花眼動填色遊戲 - 特殊教育視障專用</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
+    <!-- WebGazer.js CDN for optional webcam eye-tracking -->
+    <script src="https://cdn.jsdelivr.net/npm/webgazer@2.0.1/dist/webgazer.js" async></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Noto+Sans+HK:wght@500;700;900&display=swap');
+
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+
+        body {
+            font-family: 'Noto Sans HK', 'Fredoka', sans-serif;
+            background-color: #000000;
+            color: #ffffff;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* High-contrast neon glows for SEN / low-vision visibility */
+        .neon-border {
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.8), inset 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        .neon-btn {
+            transition: all 0.2s ease-in-out;
+            text-shadow: 0 0 8px rgba(255, 255, 255, 0.9);
+        }
+
+        .neon-btn:hover, .neon-btn:focus {
+            transform: scale(1.05);
+            box-shadow: 0 0 25px rgba(255, 255, 0, 0.9);
+        }
+
+        @keyframes pulseGlow {
+            0% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.15); opacity: 1; }
+            100% { transform: scale(1); opacity: 0.8; }
+        }
+
+        .pulse-target {
+            animation: pulseGlow 1.5s infinite ease-in-out;
+        }
+
+        /* Calibration Dot styling */
+        .calib-dot {
+            width: 36px;
+            height: 36px;
+            background-color: #ff0055;
+            border: 4px solid #ffffff;
+            border-radius: 50%;
+            position: absolute;
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+            box-shadow: 0 0 25px #ff0055, 0 0 45px #ffffff;
+            transition: transform 0.2s;
+        }
+
+        .calib-dot:active {
+            transform: translate(-50%, -50%) scale(1.5);
+            background-color: #00ffcc;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #111;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="bg-black text-white relative flex flex-col justify-between h-screen w-screen">
+
+    <!-- Top Control Bar (High Contrast SEN UI) -->
+    <header class="absolute top-0 left-0 right-0 z-30 p-3 flex justify-between items-center bg-black/85 backdrop-blur-md border-b-2 border-yellow-400">
+        <!-- Title & Mode Status -->
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-pink-500 via-yellow-400 to-cyan-400 p-1 flex items-center justify-center">
+                <span class="text-xl">🌸</span>
+            </div>
+            <div>
+                <h1 class="text-xl md:text-2xl font-black tracking-wider text-yellow-300 drop-shadow-[0_0_10px_rgba(255,255,0,0.8)]">
+                    村上隆太陽花眼動填色
+                </h1>
+                <p id="mode-status-text" class="text-xs md:text-sm font-semibold text-cyan-300">
+                    模式：注視分區著色 (Dwell Vector Fill)
+                </p>
+            </div>
+        </div>
+
+        <!-- Quick Access Actions -->
+        <div class="flex items-center space-x-2 md:space-x-4">
+            <button id="btn-reset" class="neon-btn bg-red-600 hover:bg-red-500 text-white font-bold px-4 py-2 rounded-xl text-base flex items-center gap-2 border-2 border-white shadow-lg">
+                <i class="fa-solid fa-rotate-left"></i>
+                <span class="hidden sm:inline">重新開始</span>
+            </button>
+
+            <button id="btn-mode-toggle" class="neon-btn bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2 rounded-xl text-base flex items-center gap-2 border-2 border-white shadow-lg">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                <span id="mode-toggle-label" class="hidden sm:inline">切換筆劃塗鴉</span>
+            </button>
+
+            <button id="btn-settings" class="neon-btn bg-yellow-500 hover:bg-yellow-400 text-black font-extrabold px-4 py-2 rounded-xl text-base flex items-center gap-2 border-2 border-white shadow-lg">
+                <i class="fa-solid fa-gear"></i>
+                <span>老師控制台</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Interactive Display Canvas Area -->
+    <main id="canvas-container" class="relative w-full h-full flex items-center justify-center overflow-hidden bg-black">
+        <!-- Trail Canvas for Mode A (Brush stroke mode) -->
+        <canvas id="trail-canvas" class="absolute inset-0 z-10 pointer-events-none"></canvas>
+        
+        <!-- Interactive Murakami Flower Vector Canvas -->
+        <canvas id="flower-canvas" class="absolute inset-0 z-20"></canvas>
+        
+        <!-- Visual Overlay Canvas for Gaze Reticle & Dwell Progress Ring -->
+        <canvas id="overlay-canvas" class="absolute inset-0 z-30 pointer-events-none"></canvas>
+
+        <!-- Dynamic Voice / Speech Feedback Banner -->
+        <div id="speech-toast" class="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 bg-yellow-400 text-black text-xl md:text-2xl font-black px-8 py-3 rounded-2xl border-4 border-white shadow-[0_0_30px_rgba(255,255,255,0.9)] transition-all duration-300 opacity-0 transform translate-y-8 pointer-events-none text-center">
+            準備就緒！
+        </div>
+    </main>
+
+    <!-- Teacher / Therapist Settings Modal Overlay -->
+    <div id="settings-modal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-lg flex items-center justify-center p-4 hidden">
+        <div class="bg-gray-900 border-4 border-yellow-400 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-[0_0_50px_rgba(255,255,0,0.4)] text-white space-y-6">
+            
+            <div class="flex justify-between items-center border-b-2 border-gray-700 pb-4">
+                <h2 class="text-2xl font-black text-yellow-300 flex items-center gap-3">
+                    <i class="fa-solid fa-sliders"></i>
+                    特殊教育 / 治療師參數設定
+                </h2>
+                <button id="btn-close-settings" class="text-gray-400 hover:text-white text-3xl font-bold px-3">
+                    &times;
+                </button>
+            </div>
+
+            <div class="space-y-6 text-lg">
+                <!-- Game Mode Selection -->
+                <div class="bg-gray-800 p-4 rounded-2xl border-2 border-gray-700">
+                    <label class="block font-bold text-yellow-400 mb-2">遊戲模式 (Game Mode)</label>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <button id="opt-mode-dwell" class="mode-select-btn bg-cyan-600 border-2 border-white p-3 rounded-xl font-extrabold text-center hover:bg-cyan-500 flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-bullseye"></i>
+                            注視分區著色 (Path2D)
+                        </button>
+                        <button id="opt-mode-brush" class="mode-select-btn bg-gray-700 border-2 border-gray-600 p-3 rounded-xl font-extrabold text-center hover:bg-gray-600 flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-paint-brush"></i>
+                            視線軌跡塗鴉模式
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Dwell Time Adjuster -->
+                <div class="bg-gray-800 p-4 rounded-2xl border-2 border-gray-700">
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="font-bold text-yellow-400">注視觸發時間 (Dwell Time)</label>
+                        <span id="dwell-val" class="font-black text-cyan-300 text-xl">0.8 秒</span>
+                    </div>
+                    <input type="range" id="input-dwell-time" min="0.3" max="2.5" step="0.1" value="0.8" class="w-full h-3 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-yellow-400">
+                    <p class="text-xs text-gray-400 mt-1">微調眼睛停留時間，避免視力或控制較慢的學生產生誤觸。</p>
+                </div>
+
+                <!-- Eye Smoothing Filter -->
+                <div class="bg-gray-800 p-4 rounded-2xl border-2 border-gray-700">
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="font-bold text-yellow-400">視線平滑抗抖動強度 (Gaze Filter)</label>
+                        <span id="smooth-val" class="font-black text-cyan-300 text-xl">中等 (Medium)</span>
+                    </div>
+                    <input type="range" id="input-smooth" min="0.05" max="0.5" step="0.05" value="0.2" class="w-full h-3 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-yellow-400">
+                    <p class="text-xs text-gray-400 mt-1">數值越低越平滑，可減輕眼球震顫或肌肉抽搐帶來的晃動。</p>
+                </div>
+
+                <!-- Cursor Visual Reticle -->
+                <div class="bg-gray-800 p-4 rounded-2xl border-2 border-gray-700">
+                    <label class="block font-bold text-yellow-400 mb-2">視線光標樣式 (Gaze Cursor Style)</label>
+                    <select id="select-cursor" class="w-full bg-gray-900 border-2 border-gray-600 text-white font-bold p-3 rounded-xl focus:border-yellow-400 outline-none">
+                        <option value="ring">高對比雙層光環 (High Contrast Glowing Ring)</option>
+                        <option value="crosshair">大型十字準星 (Large Crosshair Reticle)</option>
+                        <option value="dot">螢光紅點 (Neon Red Dot)</option>
+                        <option value="hidden">隱藏光標 (Hidden)</option>
+                    </select>
+                </div>
+
+                <!-- Color Palette Selection -->
+                <div class="bg-gray-800 p-4 rounded-2xl border-2 border-gray-700">
+                    <label class="block font-bold text-yellow-400 mb-2">配色調色盤 (Color Palette)</label>
+                    <select id="select-palette" class="w-full bg-gray-900 border-2 border-gray-600 text-white font-bold p-3 rounded-xl focus:border-yellow-400 outline-none">
+                        <option value="murakami">村上隆經典彩虹 (Murakami Classic Rainbow)</option>
+                        <option value="neon">高敏視覺螢光色系 (Ultra Neon CVI Contrast)</option>
+                        <option value="warm">陽光暖色系 (Warm Sunburst)</option>
+                        <option value="cool">海洋冷色系 (Cool Ocean)</option>
+                    </select>
+                </div>
+
+                <!-- Audio & Voice Toggles -->
+                <div class="bg-gray-800 p-4 rounded-2xl border-2 border-gray-700 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-yellow-400">音效回饋 (Sound FX)</span>
+                        <input type="checkbox" id="toggle-sound" checked class="w-6 h-6 accent-yellow-400 rounded cursor-pointer">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-yellow-400">廣東話/中文語音讚賞</span>
+                        <input type="checkbox" id="toggle-speech" checked class="w-6 h-6 accent-yellow-400 rounded cursor-pointer">
+                    </div>
+                </div>
+
+                <!-- Webcam Eye Tracker Controls -->
+                <div class="bg-gray-800 p-4 rounded-2xl border-2 border-yellow-500/50">
+                    <label class="block font-bold text-yellow-400 mb-2">鏡頭眼動儀 (Webcam WebGazer)</label>
+                    <p class="text-xs text-gray-300 mb-3">若無硬體眼動儀（如 Tobii），可開啟鏡頭進行即時眼球追蹤。</p>
+                    <div class="flex flex-wrap gap-3">
+                        <button id="btn-toggle-webgazer" class="bg-purple-600 hover:bg-purple-500 text-white font-bold px-4 py-2 rounded-xl border border-white text-sm">
+                            啟動鏡頭追蹤
+                        </button>
+                        <button id="btn-calibrate-webgazer" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl border border-white text-sm hidden">
+                            重新九點校準
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pt-4 border-t-2 border-gray-700 flex justify-end">
+                <button id="btn-save-settings" class="bg-yellow-400 hover:bg-yellow-300 text-black font-black px-8 py-3 rounded-xl text-lg border-2 border-white shadow-lg">
+                    確定並返回遊戲
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- WebGazer 9-Point Calibration Screen Modal -->
+    <div id="calibration-overlay" class="fixed inset-0 z-50 bg-black/95 flex flex-col justify-between p-6 hidden">
+        <div class="text-center z-10">
+            <h2 class="text-2xl md:text-3xl font-black text-yellow-300 mb-1">九點眼動追蹤校準</h2>
+            <p class="text-base text-gray-200">請學生用眼睛看著並點擊螢幕上的各個紅點（每個點點擊 3 次）。</p>
+        </div>
+
+        <div id="calib-points-container" class="relative w-full h-full"></div>
+
+        <div class="text-center z-10 pb-4">
+            <button id="btn-finish-calib" class="bg-green-500 hover:bg-green-400 text-black font-black text-xl px-8 py-3 rounded-2xl border-2 border-white shadow-[0_0_20px_rgba(0,255,0,0.8)]">
+                完成校準開始遊戲
+            </button>
+        </div>
+    </div>
+
+    <!-- Victory Modal -->
+    <div id="victory-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="text-center space-y-6 max-w-lg bg-gray-900 border-4 border-yellow-400 p-8 rounded-3xl shadow-[0_0_80px_rgba(255,215,0,0.8)]">
+            <div class="text-6xl animate-bounce">🎨🌸🎉</div>
+            <h2 class="text-3xl md:text-4xl font-black text-yellow-300 drop-shadow-[0_0_15px_rgba(255,255,0,0.9)]">
+                太棒了！太陽花著色完成！
+            </h2>
+            <p class="text-xl text-cyan-200 font-bold">
+                你創作了一朵極其美麗絢麗的村上隆太陽花！
+            </p>
+            <button id="btn-victory-replay" class="neon-btn bg-gradient-to-r from-pink-500 via-yellow-400 to-emerald-400 text-black font-black text-2xl px-8 py-4 rounded-2xl border-4 border-white shadow-2xl">
+                再玩一次 🌸
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Game State Core Engine
+        const STATE = {
+            mode: 'dwell', // 'dwell' or 'brush'
+            dwellDuration: 0.8,
+            smoothingFactor: 0.2,
+            cursorStyle: 'ring',
+            soundEnabled: true,
+            speechEnabled: true,
+            palette: 'murakami',
+            webgazerActive: false,
+            
+            rawGaze: { x: window.innerWidth / 2, y: window.innerHeight / 2 },
+            smoothGaze: { x: window.innerWidth / 2, y: window.innerHeight / 2 },
+            
+            currentFocusedId: null,
+            dwellTimer: 0,
+            isCompleted: false
+        };
+
+        const PALETTES = {
+            murakami: {
+                petals: ['#FF0055', '#FF3300', '#FF8800', '#FFCC00', '#99EE00', '#00E577', '#00E5FF', '#0077FF', '#7700FF', '#DD00FF', '#FF00AA', '#FF66B2'],
+                face: '#FFE600',
+                mouth: '#D00000',
+                tongue: '#FF66AA',
+                eyes: '#111122'
+            },
+            neon: {
+                petals: ['#FF007F', '#FF3F00', '#FFBF00', '#00FF3F', '#00FFFF', '#007FFF', '#7F00FF', '#FF00FF', '#FF003F', '#3FFF00', '#00FFBF', '#BF00FF'],
+                face: '#FFFF00',
+                mouth: '#FF0000',
+                tongue: '#FF66CC',
+                eyes: '#000000'
+            },
+            warm: {
+                petals: ['#FF0033', '#FF3300', '#FF6600', '#FF9900', '#FFCC00', '#FFEE00', '#FF5500', '#FF2200', '#FF7700', '#FFAA00', '#FFDD00', '#FF1144'],
+                face: '#FFF066',
+                mouth: '#990000',
+                tongue: '#FF8888',
+                eyes: '#221100'
+            },
+            cool: {
+                petals: ['#0033FF', '#0066FF', '#0099FF', '#00CCFF', '#00FFCC', '#00FF99', '#3300FF', '#6600FF', '#9900FF', '#CC00FF', '#00E5FF', '#00B2FF'],
+                face: '#88FFFF',
+                mouth: '#002288',
+                tongue: '#66AAFF',
+                eyes: '#001133'
+            }
+        };
+
+        const PETAL_NAMES = [
+            '粉紅色', '紅色', '橙色', '黃色', 
+            '淺綠色', '綠色', '淺藍色', '藍色', 
+            '紫色', '深紫色', '桃紅色', '淺粉紅'
+        ];
+
+        const PENTATONIC_FREQS = [
+            261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 
+            587.33, 659.25, 783.99, 880.00, 1046.50, 1174.66
+        ];
+
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playChime(freq, type = 'sine') {
+            if (!STATE.soundEnabled) return;
+            initAudio();
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
+                
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.6);
+            } catch (e) {
+                console.warn('Audio play error:', e);
+            }
+        }
+
+        function playVictoryFanfare() {
+            if (!STATE.soundEnabled) return;
+            initAudio();
+            const notes = [523.25, 659.25, 783.99, 1046.50];
+            notes.forEach((freq, idx) => {
+                setTimeout(() => playChime(freq, 'triangle'), idx * 120);
+            });
+        }
+
+        function speakText(text) {
+            if (!STATE.speechEnabled) return;
+            
+            const toast = document.getElementById('speech-toast');
+            toast.innerText = text;
+            toast.style.opacity = '1';
+            toast.style.transform = 'translate(-50%, 0)';
+            
+            clearTimeout(window.toastTimer);
+            window.toastTimer = setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translate(-50%, 20px)';
+            }, 2200);
+
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'zh-HK';
+                utterance.rate = 1.0;
+                utterance.pitch = 1.2;
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        const trailCanvas = document.getElementById('trail-canvas');
+        const flowerCanvas = document.getElementById('flower-canvas');
+        const overlayCanvas = document.getElementById('overlay-canvas');
+
+        const ctxTrail = trailCanvas.getContext('2d');
+        const ctxFlower = flowerCanvas.getContext('2d');
+        const ctxOverlay = overlayCanvas.getContext('2d');
+
+        let center = { x: 0, y: 0 };
+        let faceRadius = 0;
+        let petalOuterRadius = 0;
+
+        // Path2D vector geometry definitions for precise hit testing
+        let flowerRegions = {
+            petals: Array.from({ length: 12 }, () => ({ colored: false, path: null })),
+            face: { colored: false, path: null },
+            leftEye: { colored: false, path: null },
+            rightEye: { colored: false, path: null },
+            mouth: { colored: false, path: null }
+        };
+
+        function buildPath2DGeometry() {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+
+            [trailCanvas, flowerCanvas, overlayCanvas].forEach(canvas => {
+                canvas.width = width;
+                canvas.height = height;
+            });
+
+            center.x = width / 2;
+            center.y = height / 2;
+            const minDim = Math.min(width, height);
+            
+            faceRadius = minDim * 0.18;
+            petalOuterRadius = minDim * 0.40;
+
+            // 1. Build Face Path2D
+            flowerRegions.face.path = new Path2D();
+            flowerRegions.face.path.arc(center.x, center.y, faceRadius, 0, Math.PI * 2);
+
+            // 2. Build Mouth Path2D
+            const mouthWidth = faceRadius * 0.75;
+            const mouthHeight = faceRadius * 0.45;
+            const mouthY = center.y + faceRadius * 0.15;
+
+            flowerRegions.mouth.path = new Path2D();
+            flowerRegions.mouth.path.moveTo(center.x - mouthWidth, mouthY);
+            flowerRegions.mouth.path.quadraticCurveTo(center.x, mouthY + mouthHeight * 1.6, center.x + mouthWidth, mouthY);
+            flowerRegions.mouth.path.quadraticCurveTo(center.x, mouthY + mouthHeight * 0.2, center.x - mouthWidth, mouthY);
+            flowerRegions.mouth.path.closePath();
+
+            // 3. Build Eyes Path2D
+            const eyeOffsetX = faceRadius * 0.35;
+            const eyeOffsetY = center.y - faceRadius * 0.28;
+            const eyeRadiusX = faceRadius * 0.14;
+            const eyeRadiusY = faceRadius * 0.22;
+
+            flowerRegions.leftEye.path = new Path2D();
+            flowerRegions.leftEye.path.ellipse(center.x - eyeOffsetX, eyeOffsetY, eyeRadiusX, eyeRadiusY, 0, 0, Math.PI * 2);
+
+            flowerRegions.rightEye.path = new Path2D();
+            flowerRegions.rightEye.path.ellipse(center.x + eyeOffsetX, eyeOffsetY, eyeRadiusX, eyeRadiusY, 0, 0, Math.PI * 2);
+
+            // 4. Build 12 Petals Path2D in exact absolute world coordinates
+            const petalWidth = faceRadius * 0.42;
+            const petalLength = petalOuterRadius - faceRadius;
+
+            for (let i = 0; i < 12; i++) {
+                const alpha = (i * 30 - 90) * (Math.PI / 180); // Radial angle
+                
+                // Parametric transformation helper from local petal space (u, v) to world (X, Y)
+                const transform = (u, v) => {
+                    const x = center.x + u * Math.cos(alpha + Math.PI / 2) + v * Math.cos(alpha);
+                    const y = center.y + u * Math.sin(alpha + Math.PI / 2) + v * Math.sin(alpha);
+                    return { x, y };
+                };
+
+                const pStart = transform(0, faceRadius * 0.85);
+                const pCtrl1a = transform(-petalWidth * 1.2, faceRadius + petalLength * 0.4);
+                const pCtrl1b = transform(-petalWidth * 1.1, faceRadius + petalLength);
+                const pTip = transform(0, faceRadius + petalLength);
+                const pCtrl2a = transform(petalWidth * 1.1, faceRadius + petalLength);
+                const pCtrl2b = transform(petalWidth * 1.2, faceRadius + petalLength * 0.4);
+
+                const petalPath = new Path2D();
+                petalPath.moveTo(pStart.x, pStart.y);
+                petalPath.bezierCurveTo(pCtrl1a.x, pCtrl1a.y, pCtrl1b.x, pCtrl1b.y, pTip.x, pTip.y);
+                petalPath.bezierCurveTo(pCtrl2a.x, pCtrl2a.y, pCtrl2b.x, pCtrl2b.y, pStart.x, pStart.y);
+                petalPath.closePath();
+
+                flowerRegions.petals[i].path = petalPath;
+            }
+
+            renderFlower();
+        }
+
+        window.addEventListener('resize', buildPath2DGeometry);
+
+        // Perform exact vector hit testing using ctx.isPointInPath()
+        function getGazeTargetRegion(gx, gy) {
+            // Check top-most elements first (Eyes, Mouth, Face, then 12 Petals)
+            if (ctxFlower.isPointInPath(flowerRegions.leftEye.path, gx, gy)) return 'leftEye';
+            if (ctxFlower.isPointInPath(flowerRegions.rightEye.path, gx, gy)) return 'rightEye';
+            if (ctxFlower.isPointInPath(flowerRegions.mouth.path, gx, gy)) return 'mouth';
+            if (ctxFlower.isPointInPath(flowerRegions.face.path, gx, gy)) return 'face';
+
+            for (let i = 0; i < 12; i++) {
+                if (flowerRegions.petals[i].path && ctxFlower.isPointInPath(flowerRegions.petals[i].path, gx, gy)) {
+                    return `petal_${i}`;
+                }
+            }
+
+            return null;
+        }
+
+        function renderFlower() {
+            ctxFlower.clearRect(0, 0, flowerCanvas.width, flowerCanvas.height);
+            const activePalette = PALETTES[STATE.palette];
+
+            // 1. Draw 12 Petals
+            for (let i = 0; i < 12; i++) {
+                const isColored = flowerRegions.petals[i].colored;
+                const path = flowerRegions.petals[i].path;
+                if (!path) continue;
+
+                ctxFlower.save();
+                if (isColored) {
+                    ctxFlower.fillStyle = activePalette.petals[i];
+                    ctxFlower.fill(path);
+                } else {
+                    ctxFlower.fillStyle = '#111111';
+                    ctxFlower.fill(path);
+                }
+
+                ctxFlower.strokeStyle = '#FFFFFF';
+                ctxFlower.lineWidth = 6;
+                ctxFlower.stroke(path);
+                ctxFlower.restore();
+            }
+
+            // 2. Draw Central Face
+            if (flowerRegions.face.path) {
+                ctxFlower.save();
+                if (flowerRegions.face.colored) {
+                    ctxFlower.fillStyle = activePalette.face;
+                    ctxFlower.fill(flowerRegions.face.path);
+                } else {
+                    ctxFlower.fillStyle = '#181818';
+                    ctxFlower.fill(flowerRegions.face.path);
+                }
+                ctxFlower.strokeStyle = '#FFFFFF';
+                ctxFlower.lineWidth = 8;
+                ctxFlower.stroke(flowerRegions.face.path);
+                ctxFlower.restore();
+            }
+
+            // 3. Draw Smiling Mouth
+            if (flowerRegions.mouth.path) {
+                ctxFlower.save();
+                if (flowerRegions.mouth.colored) {
+                    ctxFlower.fillStyle = activePalette.mouth;
+                    ctxFlower.fill(flowerRegions.mouth.path);
+
+                    // Tongue accent inside mouth
+                    ctxFlower.clip(flowerRegions.mouth.path);
+                    const mouthWidth = faceRadius * 0.75;
+                    const mouthY = center.y + faceRadius * 0.15;
+                    ctxFlower.beginPath();
+                    ctxFlower.arc(center.x, mouthY + faceRadius * 0.45, mouthWidth * 0.55, 0, Math.PI * 2);
+                    ctxFlower.fillStyle = activePalette.tongue;
+                    ctxFlower.fill();
+                } else {
+                    ctxFlower.fillStyle = '#0a0a0a';
+                    ctxFlower.fill(flowerRegions.mouth.path);
+                }
+                ctxFlower.strokeStyle = '#FFFFFF';
+                ctxFlower.lineWidth = 5;
+                ctxFlower.stroke(flowerRegions.mouth.path);
+                ctxFlower.restore();
+            }
+
+            // 4. Draw Sparkling Eyes
+            ['leftEye', 'rightEye'].forEach(eyeKey => {
+                const path = flowerRegions[eyeKey].path;
+                if (!path) return;
+
+                ctxFlower.save();
+                ctxFlower.fillStyle = flowerRegions[eyeKey].colored ? activePalette.eyes : '#000000';
+                ctxFlower.fill(path);
+                ctxFlower.strokeStyle = '#FFFFFF';
+                ctxFlower.lineWidth = 4;
+                ctxFlower.stroke(path);
+
+                // Eye sparkle highlights
+                const eyeOffsetX = eyeKey === 'leftEye' ? -faceRadius * 0.35 : faceRadius * 0.35;
+                const eyeOffsetY = center.y - faceRadius * 0.28;
+                const rx = faceRadius * 0.14;
+                const ry = faceRadius * 0.22;
+
+                ctxFlower.beginPath();
+                ctxFlower.ellipse(center.x + eyeOffsetX - rx * 0.2, eyeOffsetY - ry * 0.3, rx * 0.35, ry * 0.35, 0, 0, Math.PI * 2);
+                ctxFlower.fillStyle = '#FFFFFF';
+                ctxFlower.fill();
+
+                ctxFlower.beginPath();
+                ctxFlower.ellipse(center.x + eyeOffsetX + rx * 0.3, eyeOffsetY + ry * 0.3, rx * 0.2, ry * 0.2, 0, 0, Math.PI * 2);
+                ctxFlower.fillStyle = '#FFFFFF';
+                ctxFlower.fill();
+                ctxFlower.restore();
+            });
+        }
+
+        let trailParticles = [];
+
+        function updateAndDrawTrail() {
+            if (STATE.mode !== 'brush') {
+                ctxTrail.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
+                return;
+            }
+
+            for (let i = 0; i < 3; i++) {
+                trailParticles.push({
+                    x: STATE.smoothGaze.x + (Math.random() - 0.5) * 15,
+                    y: STATE.smoothGaze.y + (Math.random() - 0.5) * 15,
+                    radius: Math.random() * 12 + 8,
+                    hue: (Date.now() / 10 + i * 30) % 360,
+                    life: 1.0,
+                    decay: Math.random() * 0.02 + 0.015
+                });
+            }
+
+            ctxTrail.fillStyle = 'rgba(0, 0, 0, 0.15)';
+            ctxTrail.fillRect(0, 0, trailCanvas.width, trailCanvas.height);
+
+            for (let i = trailParticles.length - 1; i >= 0; i--) {
+                const p = trailParticles[i];
+                p.life -= p.decay;
+                if (p.life <= 0) {
+                    trailParticles.splice(i, 1);
+                    continue;
+                }
+
+                ctxTrail.beginPath();
+                ctxTrail.arc(p.x, p.y, p.radius * p.life, 0, Math.PI * 2);
+                ctxTrail.fillStyle = `hsla(${p.hue}, 100%, 65%, ${p.life})`;
+                ctxTrail.shadowBlur = 15;
+                ctxTrail.shadowColor = `hsl(${p.hue}, 100%, 50%)`;
+                ctxTrail.fill();
+                ctxTrail.shadowBlur = 0;
+            }
+        }
+
+        function renderOverlay(deltaTime) {
+            ctxOverlay.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            const gx = STATE.smoothGaze.x;
+            const gy = STATE.smoothGaze.y;
+
+            if (STATE.mode === 'dwell' && !STATE.isCompleted) {
+                const targetRegion = getGazeTargetRegion(gx, gy);
+
+                if (targetRegion) {
+                    let isAlreadyColored = false;
+                    let targetPath = null;
+
+                    if (targetRegion.startsWith('petal_')) {
+                        const idx = parseInt(targetRegion.split('_')[1]);
+                        isAlreadyColored = flowerRegions.petals[idx].colored;
+                        targetPath = flowerRegions.petals[idx].path;
+                    } else if (targetRegion === 'face') {
+                        isAlreadyColored = flowerRegions.face.colored;
+                        targetPath = flowerRegions.face.path;
+                    } else if (targetRegion === 'leftEye' || targetRegion === 'rightEye') {
+                        isAlreadyColored = flowerRegions.leftEye.colored && flowerRegions.rightEye.colored;
+                        targetPath = flowerRegions[targetRegion].path;
+                    } else if (targetRegion === 'mouth') {
+                        isAlreadyColored = flowerRegions.mouth.colored;
+                        targetPath = flowerRegions.mouth.path;
+                    }
+
+                    if (!isAlreadyColored) {
+                        if (STATE.currentFocusedId === targetRegion) {
+                            STATE.dwellTimer += deltaTime;
+                        } else {
+                            STATE.currentFocusedId = targetRegion;
+                            STATE.dwellTimer = 0;
+                        }
+
+                        const progress = Math.min(STATE.dwellTimer / STATE.dwellDuration, 1.0);
+
+                        // Highlight the targeted Path2D vector shape
+                        if (targetPath) {
+                            ctxOverlay.save();
+                            ctxOverlay.fillStyle = `rgba(0, 255, 255, ${0.15 + progress * 0.35})`;
+                            ctxOverlay.fill(targetPath);
+                            ctxOverlay.strokeStyle = '#00FFFF';
+                            ctxOverlay.lineWidth = 8;
+                            ctxOverlay.shadowBlur = 20;
+                            ctxOverlay.shadowColor = '#00FFFF';
+                            ctxOverlay.stroke(targetPath);
+                            ctxOverlay.restore();
+                        }
+
+                        // Circular Dwell Progress Ring at gaze cursor
+                        ctxOverlay.beginPath();
+                        ctxOverlay.arc(gx, gy, 48, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
+                        ctxOverlay.lineWidth = 10;
+                        ctxOverlay.strokeStyle = '#00FFFF';
+                        ctxOverlay.shadowBlur = 15;
+                        ctxOverlay.shadowColor = '#00FFFF';
+                        ctxOverlay.stroke();
+                        ctxOverlay.shadowBlur = 0;
+
+                        // Trigger Color Fill when dwell completes
+                        if (progress >= 1.0) {
+                            colorizeRegion(targetRegion);
+                            STATE.dwellTimer = 0;
+                            STATE.currentFocusedId = null;
+                        }
+                    } else {
+                        STATE.dwellTimer = 0;
+                        STATE.currentFocusedId = null;
+                    }
+                } else {
+                    STATE.dwellTimer = 0;
+                    STATE.currentFocusedId = null;
+                }
+            }
+
+            // Draw Gaze Reticle
+            if (STATE.cursorStyle !== 'hidden') {
+                ctxOverlay.save();
+                
+                if (STATE.cursorStyle === 'ring') {
+                    ctxOverlay.beginPath();
+                    ctxOverlay.arc(gx, gy, 20, 0, Math.PI * 2);
+                    ctxOverlay.strokeStyle = '#FFFF00';
+                    ctxOverlay.lineWidth = 4;
+                    ctxOverlay.shadowBlur = 12;
+                    ctxOverlay.shadowColor = '#FFFF00';
+                    ctxOverlay.stroke();
+
+                    ctxOverlay.beginPath();
+                    ctxOverlay.arc(gx, gy, 6, 0, Math.PI * 2);
+                    ctxOverlay.fillStyle = '#FF0055';
+                    ctxOverlay.fill();
+                } else if (STATE.cursorStyle === 'crosshair') {
+                    ctxOverlay.strokeStyle = '#00FFCC';
+                    ctxOverlay.lineWidth = 4;
+                    ctxOverlay.shadowBlur = 10;
+                    ctxOverlay.shadowColor = '#00FFCC';
+
+                    ctxOverlay.beginPath();
+                    ctxOverlay.moveTo(gx - 30, gy); ctxOverlay.lineTo(gx + 30, gy);
+                    ctxOverlay.moveTo(gx, gy - 30); ctxOverlay.lineTo(gx, gy + 30);
+                    ctxOverlay.stroke();
+
+                    ctxOverlay.beginPath();
+                    ctxOverlay.arc(gx, gy, 12, 0, Math.PI * 2);
+                    ctxOverlay.stroke();
+                } else if (STATE.cursorStyle === 'dot') {
+                    ctxOverlay.beginPath();
+                    ctxOverlay.arc(gx, gy, 14, 0, Math.PI * 2);
+                    ctxOverlay.fillStyle = '#FF0000';
+                    ctxOverlay.shadowBlur = 15;
+                    ctxOverlay.shadowColor = '#FF0000';
+                    ctxOverlay.fill();
+                    ctxOverlay.strokeStyle = '#FFFFFF';
+                    ctxOverlay.lineWidth = 3;
+                    ctxOverlay.stroke();
+                }
+
+                ctxOverlay.restore();
+            }
+        }
+
+        function colorizeRegion(regionId) {
+            if (regionId.startsWith('petal_')) {
+                const idx = parseInt(regionId.split('_')[1]);
+                flowerRegions.petals[idx].colored = true;
+                playChime(PENTATONIC_FREQS[idx], 'sine');
+                speakText(PETAL_NAMES[idx]);
+            } else if (regionId === 'face') {
+                flowerRegions.face.colored = true;
+                playChime(440, 'triangle');
+                speakText("黃色");
+            } else if (regionId === 'leftEye' || regionId === 'rightEye') {
+                flowerRegions.leftEye.colored = true;
+                flowerRegions.rightEye.colored = true;
+                playChime(880, 'sine');
+                speakText("黑色");
+            } else if (regionId === 'mouth') {
+                flowerRegions.mouth.colored = true;
+                playChime(523.25, 'triangle');
+                speakText("紅色");
+            }
+
+            renderFlower();
+            checkVictory();
+        }
+
+        function checkVictory() {
+            const allPetals = flowerRegions.petals.every(p => p.colored);
+            const faceDone = flowerRegions.face.colored;
+            const eyesDone = flowerRegions.leftEye.colored && flowerRegions.rightEye.colored;
+            const mouthDone = flowerRegions.mouth.colored;
+
+            if (allPetals && faceDone && eyesDone && mouthDone && !STATE.isCompleted) {
+                STATE.isCompleted = true;
+                playVictoryFanfare();
+                speakText("太棒了！你完成了整朵美麗的村上隆太陽花！");
+
+                setTimeout(() => {
+                    document.getElementById('victory-modal').classList.remove('hidden');
+                }, 1000);
+            }
+        }
+
+        function resetGame() {
+            flowerRegions.petals.forEach(p => p.colored = false);
+            flowerRegions.face.colored = false;
+            flowerRegions.leftEye.colored = false;
+            flowerRegions.rightEye.colored = false;
+            flowerRegions.mouth.colored = false;
+
+            STATE.isCompleted = false;
+            STATE.dwellTimer = 0;
+            STATE.currentFocusedId = null;
+
+            ctxTrail.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
+            trailParticles = [];
+
+            renderFlower();
+            document.getElementById('victory-modal').classList.add('hidden');
+            speakText("重新開始，請用眼睛注視著色！");
+        }
+
+        function handlePointerMove(e) {
+            initAudio();
+            STATE.rawGaze.x = e.clientX || (e.touches && e.touches[0].clientX);
+            STATE.rawGaze.y = e.clientY || (e.touches && e.touches[0].clientY);
+        }
+
+        window.addEventListener('mousemove', handlePointerMove);
+        window.addEventListener('touchmove', handlePointerMove);
+        window.addEventListener('touchstart', handlePointerMove);
+
+        let lastTime = performance.now();
+
+        function gameLoop(now) {
+            const deltaTime = (now - lastTime) / 1000;
+            lastTime = now;
+
+            // Exponential Moving Average (EMA) Smoothing Filter
+            STATE.smoothGaze.x += (STATE.rawGaze.x - STATE.smoothGaze.x) * STATE.smoothingFactor;
+            STATE.smoothGaze.y += (STATE.rawGaze.y - STATE.smoothGaze.y) * STATE.smoothingFactor;
+
+            updateAndDrawTrail();
+            renderOverlay(deltaTime);
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Settings Modal UI
+        const settingsModal = document.getElementById('settings-modal');
+        const btnSettings = document.getElementById('btn-settings');
+        const btnCloseSettings = document.getElementById('btn-close-settings');
+        const btnSaveSettings = document.getElementById('btn-save-settings');
+
+        btnSettings.addEventListener('click', () => settingsModal.classList.remove('hidden'));
+        btnCloseSettings.addEventListener('click', () => settingsModal.classList.add('hidden'));
+        btnSaveSettings.addEventListener('click', () => settingsModal.classList.add('hidden'));
+
+        // Mode Switching
+        const btnModeToggle = document.getElementById('btn-mode-toggle');
+        const modeStatusText = document.getElementById('mode-status-text');
+        const optModeDwell = document.getElementById('opt-mode-dwell');
+        const optModeBrush = document.getElementById('opt-mode-brush');
+
+        function setGameMode(mode) {
+            STATE.mode = mode;
+            if (mode === 'dwell') {
+                modeStatusText.innerText = '模式：注視分區著色 (Dwell Vector Fill)';
+                document.getElementById('mode-toggle-label').innerText = '切換筆劃塗鴉';
+                optModeDwell.className = 'mode-select-btn bg-cyan-600 border-2 border-white p-3 rounded-xl font-extrabold text-center hover:bg-cyan-500 flex items-center justify-center gap-2';
+                optModeBrush.className = 'mode-select-btn bg-gray-700 border-2 border-gray-600 p-3 rounded-xl font-extrabold text-center hover:bg-gray-600 flex items-center justify-center gap-2';
+                speakText("切換至注視分區填色模式");
+            } else {
+                modeStatusText.innerText = '模式：視線軌跡塗鴉 (Gaze Brush)';
+                document.getElementById('mode-toggle-label').innerText = '切換分區著色';
+                optModeBrush.className = 'mode-select-btn bg-cyan-600 border-2 border-white p-3 rounded-xl font-extrabold text-center hover:bg-cyan-500 flex items-center justify-center gap-2';
+                optModeDwell.className = 'mode-select-btn bg-gray-700 border-2 border-gray-600 p-3 rounded-xl font-extrabold text-center hover:bg-gray-600 flex items-center justify-center gap-2';
+                speakText("切換至視線軌跡塗鴉模式");
+            }
+        }
+
+        btnModeToggle.addEventListener('click', () => setGameMode(STATE.mode === 'dwell' ? 'brush' : 'dwell'));
+        optModeDwell.addEventListener('click', () => setGameMode('dwell'));
+        optModeBrush.addEventListener('click', () => setGameMode('brush'));
+
+        // Dwell Time Slider
+        const inputDwell = document.getElementById('input-dwell-time');
+        const dwellValText = document.getElementById('dwell-val');
+        inputDwell.addEventListener('input', (e) => {
+            STATE.dwellDuration = parseFloat(e.target.value);
+            dwellValText.innerText = `${STATE.dwellDuration.toFixed(1)} 秒`;
+        });
+
+        // Smoothing Slider
+        const inputSmooth = document.getElementById('input-smooth');
+        const smoothValText = document.getElementById('smooth-val');
+        inputSmooth.addEventListener('input', (e) => {
+            STATE.smoothingFactor = parseFloat(e.target.value);
+            if (STATE.smoothingFactor <= 0.1) smoothValText.innerText = '強 (Strong Anti-Jitter)';
+            else if (STATE.smoothingFactor <= 0.25) smoothValText.innerText = '中等 (Medium)';
+            else smoothValText.innerText = '輕微 (Low)';
+        });
+
+        // Selectors & Switches
+        document.getElementById('select-cursor').addEventListener('change', (e) => STATE.cursorStyle = e.target.value);
+        document.getElementById('select-palette').addEventListener('change', (e) => {
+            STATE.palette = e.target.value;
+            renderFlower();
+        });
+
+        document.getElementById('toggle-sound').addEventListener('change', (e) => STATE.soundEnabled = e.target.checked);
+        document.getElementById('toggle-speech').addEventListener('change', (e) => STATE.speechEnabled = e.target.checked);
+
+        document.getElementById('btn-reset').addEventListener('click', resetGame);
+        document.getElementById('btn-victory-replay').addEventListener('click', resetGame);
+
+        const btnToggleWebgazer = document.getElementById('btn-toggle-webgazer');
+        const btnCalibrateWebgazer = document.getElementById('btn-calibrate-webgazer');
+        const calibrationOverlay = document.getElementById('calibration-overlay');
+        const calibContainer = document.getElementById('calib-points-container');
+
+        btnToggleWebgazer.addEventListener('click', () => {
+            if (typeof webgazer === 'undefined') {
+                speakText("WebGazer 載入中，請確認網絡。");
+                return;
+            }
+
+            if (!STATE.webgazerActive) {
+                webgazer.setGazeListener((data, elapsedTime) => {
+                    if (data) {
+                        STATE.rawGaze.x = data.x;
+                        STATE.rawGaze.y = data.y;
+                    }
+                }).begin();
+
+                webgazer.showVideoPreview(true).showPredictionPoints(true);
+                STATE.webgazerActive = true;
+                btnToggleWebgazer.innerText = '關閉鏡頭追蹤';
+                btnCalibrateWebgazer.classList.remove('hidden');
+                speakText("已啟動鏡頭眼動追蹤");
+            } else {
+                webgazer.end();
+                STATE.webgazerActive = false;
+                btnToggleWebgazer.innerText = '啟動鏡頭追蹤';
+                btnCalibrateWebgazer.classList.add('hidden');
+            }
+        });
+
+        btnCalibrateWebgazer.addEventListener('click', () => {
+            settingsModal.classList.add('hidden');
+            startCalibration();
+        });
+
+        function startCalibration() {
+            calibrationOverlay.classList.remove('hidden');
+            calibContainer.innerHTML = '';
+
+            const points = [
+                { x: '10%', y: '10%' }, { x: '50%', y: '10%' }, { x: '90%', y: '10%' },
+                { x: '10%', y: '50%' }, { x: '50%', y: '50%' }, { x: '90%', y: '50%' },
+                { x: '10%', y: '90%' }, { x: '50%', y: '90%' }, { x: '90%', y: '90%' }
+            ];
+
+            points.forEach(pt => {
+                const dot = document.createElement('div');
+                dot.className = 'calib-dot pulse-target';
+                dot.style.left = pt.x;
+                dot.style.top = pt.y;
+                let clicks = 0;
+
+                dot.addEventListener('click', () => {
+                    clicks++;
+                    if (clicks >= 3) {
+                        dot.style.backgroundColor = '#00ffcc';
+                        dot.classList.remove('pulse-target');
+                    }
+                });
+
+                calibContainer.appendChild(dot);
+            });
+        }
+
+        document.getElementById('btn-finish-calib').addEventListener('click', () => {
+            calibrationOverlay.classList.add('hidden');
+            if (typeof webgazer !== 'undefined') {
+                webgazer.showVideoPreview(false).showPredictionPoints(false);
+            }
+            speakText("校準完成，開始遊戲！");
+        });
+
+        window.onload = function() {
+            buildPath2DGeometry();
+            requestAnimationFrame(gameLoop);
+            speakText("歡迎遊玩村上隆太陽花眼動填色遊戲！");
+        };
+    </script>
+</body>
+</html>
